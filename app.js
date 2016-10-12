@@ -143,18 +143,7 @@ bot.dialog('/fen', [
     },
     function (session, results) {
         ///TODO: perform FEM validation step here
-        ///TODO: use function
-        session.send("ok. let me check the next best move for you....");
-        engine
-            .nextMove(results.response)
-            .then((result) => {
-                session.send("I suggest you that one: '%s'", result.nextMove);
-
-                ///TODO: call a dialog which prompts for help on visualizing on the board the next move and redirects to lichess or a are you curious to know what is your opponent next best move
-
-                // End
-                session.endDialog();
-            });
+        session.beginDialog('/compute', {situation: results.response});
     }
 
 ]);
@@ -166,18 +155,36 @@ bot.dialog('/moves', [
     },
     function (session, results) {
         ///TODO: perform moves validation step here
-        ///TODO: use function
-        session.send("ok. let me check the next best move for you....");
-        engine
-            .nextMove(results.response)
-            .then((result) => {
-                session.send('I suggest you that one: ', result.nextMove);
-
-                ///TODO: call a dialog which prompts for help on visualizing on the board the next move and redirects to lichess or a are you curious to know what is your opponent next best move
-
-                // End
-                session.endDialog();
-            });
+        session.beginDialog('/compute', {situation: results.response});
     }
 
 ]);
+
+bot.dialog('/compute',function(session, args){
+    session.send("ok. let me check the next best move for you....");
+    //session.userData.situation = args.situation;
+    engine
+        .nextMove(args.situation)
+        .then((result) => {
+            session.send("I suggest you that one: %s", result.nextMove);
+            //session.userData.prediction = result;
+            var isFen = args.situation.indexOf("/") > -1;
+            if (isFen){
+                session.beginDialog('/show_board', {fen: args.situation, prediction: result});
+            }
+            else {
+                session.beginDialog('/opponent', {prediction: result});
+            }
+            // End
+            session.endDialog();
+        });
+});
+
+bot.dialog('/show_board',function(session, args){
+    session.send("does not look familiar to you? let me show it on a board...");
+    var fen = args.fen;
+    var match = fen.match(/\S+/gi);
+    var url = "https://en.lichess.org/analysis/" + match[0] + "_" + match[1];
+    session.send("just click <a href='%s'>here</a>!", url);
+});
+
