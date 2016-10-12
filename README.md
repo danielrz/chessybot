@@ -1,2 +1,2 @@
 # chessybot
-your chess buddy bot
+your chess buddy bot! Available soon ;)
