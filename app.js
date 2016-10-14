@@ -181,10 +181,14 @@ bot.dialog('/compute',function(session, args){
 });
 
 bot.dialog('/show_board',function(session, args){
-    session.send("does not look familiar to you? let me show it on a board...");
     var fen = args.fen;
     var match = fen.match(/\S+/gi);
-    var url = "https://en.lichess.org/analysis/" + match[0] + "_" + match[1];
-    session.send("just click <a href='%s'>here</a>!", url);
+    var url = "https://en.lichess.org/analysis/standard/" + match[0] + "_" + match[1];
+    session.send("let me show this on a <a href='%s'>chessboard</a>!", url);
+    session.beginDialog('/opponent', {prediction: args.prediction});
+});
+
+bot.dialog('/opponent',function(session, args){
+    session.send("by the way the best move for your opponent right after your move is %s...", args.prediction.nextOpponentMove);
 });
 
