@@ -4,6 +4,10 @@
 var builder = require('botbuilder');
 var restify = require('restify');
 var engine = require('./engine/engine');
+var Chess = require('chess.js').Chess;
+var chess = new Chess();
+/*var res = chess.load_pgn('1.e4 e5 2.Nf3 Nc6 3.Bc4 Bc5 4.b4 Bxb4 5.c3 Ba5 6.d4 exd4 7.O-O', {sloppy: true});
+console.log(res);*/
 
 // Setup Restify Server
 var server = restify.createServer();
@@ -119,7 +123,7 @@ bot.dialog('/help', [
 
 bot.dialog('/menu', [
     function (session) {
-        builder.Prompts.choice(session, "How would you like me to predict your next move?", "fen|moves|(quit)");
+        builder.Prompts.choice(session, "How would you like me to predict your next move?", "fen|pgn|(quit)");
     },
     function (session, results) {
         if (results.response && results.response.entity != '(quit)') {
@@ -138,27 +142,67 @@ bot.dialog('/menu', [
 
 bot.dialog('/fen', [
     function (session) {
-        //session.send("please enter the FEN text. Leave empty for the initial chess game. Example: rnbqkb1r/pp3ppp/4pn2/3p4/2PP4/2N5/PP3PPP/R1BQKBNR w KQkq -");
-        builder.Prompts.text(session, "please enter the FEN of your current board. Leave empty for the initial chess game. Example: rnbqkb1r/pp3ppp/4pn2/3p4/2PP4/2N5/PP3PPP/R1BQKBNR w KQkq -");
+        session.beginDialog('/validate_fen', {
+            prompt: "Please enter the FEN of your current board. Example: rnbqkb1r/pp3ppp/4pn2/3p4/2PP4/2N5/PP3PPP/R1BQKBNR w KQkq -",
+            retryPrompt: "Let's try again..."
+        });
     },
     function (session, results) {
-        ///TODO: perform FEM validation step here
-        session.beginDialog('/compute', {situation: results.response});
+        if (results.response){
+            session.beginDialog('/compute', {situation: results.response});
+        }
+        else{
+            session.beginDialog("/no_situation");
+        }
     }
 
 ]);
 
-bot.dialog('/moves', [
+bot.dialog('/validate_fen', builder.DialogAction.validatedPrompt(builder.PromptType.text, function (response) {
+    var result = chess.validate_fen(response);
+    var isValid = result.valid;
+    ///TODO: currently prints the validation error message in the console as I did not find a way to to it with validatedPrompt
+    ///maybe a workaround is implement my own by using the confirm prompt with a retry mechanism
+    if (!isValid){
+        console.log("FEN validation error for " + response + ": " + result.error);
+    }
+    return isValid;
+}));
+
+bot.dialog('/pgn', [
     function (session) {
-        //session.send("please enter the FEN text. Leave empty for the initial chess game. Example: rnbqkb1r/pp3ppp/4pn2/3p4/2PP4/2N5/PP3PPP/R1BQKBNR w KQkq -");
-        builder.Prompts.text(session, "please enter the moves history. Leave empty for the initial chess game. Example: e2e4 e7e5 g1f3 b8c6 f1c4");
+        session.beginDialog('/validate_pgn', {
+            prompt: "please enter the moves history using the pgn format (with or without header, sloppy or not). Example: 1.e4 e5 2.Nf3 Nc6 3.Bc4 Bc5 4.b4 Bxb4 5.c3 Ba5 6.d4 exd4 7.O-O",
+            retryPrompt: "Let's try again..."
+        });
     },
     function (session, results) {
-        ///TODO: perform moves validation step here
-        session.beginDialog('/compute', {situation: results.response});
+        if (results.response){
+            var isOk = chess.load_pgn(results.response);
+            if (isOk){
+                var situation = chess.fen();
+                session.beginDialog('/compute', {situation: situation});
+            }
+            else {
+                session.beginDialog("/no_situation");
+            }
+        }
+        else{
+            session.beginDialog("/no_situation");
+        }
     }
-
 ]);
+
+bot.dialog('/validate_pgn', builder.DialogAction.validatedPrompt(builder.PromptType.text, function (response) {
+    var isValid = chess.load_pgn(response);
+    return isValid;
+}));
+
+bot.dialog("/no_situation", function(session){
+    session.send("I'm sorry, I could not load the game according your input.");
+    session.send("Don't worry, you still can try with another format from the menu");
+    session.endDialog();
+});
 
 bot.dialog('/compute',function(session, args){
     session.send("ok. let me check the next best move for you....");
