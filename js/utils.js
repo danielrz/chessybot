@@ -1,6 +1,7 @@
 /**
  * Created by danielr on 10/12/16.
  */
+var qs = require("querystring");
 
 module.exports = {
     replaceAll: function (str, find, replace) {
@@ -24,5 +25,14 @@ module.exports = {
             }
         }
         return fen;
+    },
+
+    getChessyWebUrl: function(fen, prediction){
+        ///for some reasons building a link with more than two query params does not work
+        ///TODO: submit the issue in git
+        var data = (prediction === null || prediction === "") ? fen : fen + " " + prediction;
+        var basePath = process.env.USE_CHESSY_WEB_TUNNEL ? process.env.CHESSY_WEB_PATH_TUNNEL : process.env.CHESSY_WEB_PATH_DEV;
+        var url = basePath + "?" + qs.stringify({data: data});
+        return url;
     }
 };

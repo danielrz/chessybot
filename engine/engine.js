@@ -5,6 +5,7 @@ var Promise = require('bluebird');
 var stockfish = require("../lib/stockfish.js");
 
 var DEFAULT_ANALYZING_TIME = 10000;
+var MAX_NEXT_MATE_MOVE = 1000;
 
 var engine = stockfish();
 
@@ -16,6 +17,7 @@ module.exports = {
             var got_uci;
             var got_ready;
             var started_thinking;
+            var next_mate_move = MAX_NEXT_MATE_MOVE;
 
             function send(str) {
                 console.log("Sending: " + str)
@@ -45,6 +47,7 @@ module.exports = {
                         send("d");
                     }
                     send("go ponder");
+                    //send("go mate 3"); //this CPU and time consuming. do not use it!
                 }
                 else if (!started_thinking && line.indexOf("info depth") > -1) {
                     console.log("Thinking...");
@@ -62,9 +65,20 @@ module.exports = {
                             result.nextOpponentMove = match[1];
                             console.log("Next opponent move: " + result.nextOpponentMove);
                         }
+                        if (next_mate_move < MAX_NEXT_MATE_MOVE){
+                            result.nextMateMove = next_mate_move;
+                        }
                         resolve(result);
                     }
 
+                }
+                else if (line.indexOf("score mate ") > -1){
+                    match = line.match(/score mate [0-9]+/);
+                    match = match[0].match(/[0-9]+/);
+                    var mate = parseInt(match[0], 10);
+                    if (mate < next_mate_move){
+                        next_mate_move = mate;
+                    }
                 }
             };
 

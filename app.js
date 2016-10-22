@@ -6,7 +6,11 @@ var restify = require('restify');
 var engine = require('./engine/engine');
 var utils = require('./js/utils');
 var Chess = require('chess.js').Chess;
-var qs = require("querystring");
+
+var PLAYER_COLOR = {
+    BLACK: "BLACK",
+    WHITE: "WHITE"
+};
 
 var chess = new Chess();
 
@@ -152,10 +156,10 @@ bot.dialog('/fen', [
     function (session, results) {
         if (results.response){
             var fen = utils.normalizeFen(results.response);
-            session.beginDialog('/compute', {situation: fen});
+            session.beginDialog('/compute', {fen: fen});
         }
         else{
-            session.beginDialog("/no_situation");
+            session.beginDialog("/no_fen");
         }
     }
 
@@ -184,15 +188,15 @@ bot.dialog('/pgn', [
         if (results.response){
             var isOk = chess.load_pgn(results.response);
             if (isOk){
-                var situation = chess.fen();
-                session.beginDialog('/compute', {situation: situation});
+                var fen = chess.fen();
+                session.beginDialog('/compute', {fen: fen});
             }
             else {
-                session.beginDialog("/no_situation");
+                session.beginDialog("/no_fen");
             }
         }
         else{
-            session.beginDialog("/no_situation");
+            session.beginDialog("/no_fen");
         }
     }
 ]);
@@ -202,7 +206,7 @@ bot.dialog('/validate_pgn', builder.DialogAction.validatedPrompt(builder.PromptT
     return isValid;
 }));
 
-bot.dialog("/no_situation", function(session){
+bot.dialog("/no_fen", function(session){
     session.send("I'm sorry, I could not load the game according your input.");
     session.send("Don't worry, you still can try with another format from the menu");
     session.endDialog();
@@ -210,52 +214,75 @@ bot.dialog("/no_situation", function(session){
 
 bot.dialog('/compute',function(session, args){
     session.send("ok. let me check the next best move for you....");
-    //session.userData.situation = args.situation;
-    engine
-        .nextMove(args.situation)
-        .then((result) => {
-            session.send("I suggest you that one: %s", result.nextMove);
-            //session.userData.prediction = result;
-            var isFen = args.situation.indexOf("/") > -1;
-            if (isFen){
-                session.beginDialog('/show_board', {fen: args.situation, prediction: result.nextMove, nextOpponentMove: result.nextOpponentMove});
+    var fen = args.fen;
+    if (chess.load(fen) === true){  //not clear from the doc when it fails if boolean only or not
+        if (chess.game_over()){
+            var message = "Ouch! it seems like the game is over! ";
+            var playerColor = chess.turn() === "b" ? PLAYER_COLOR.BLACK : PLAYER_COLOR.WHITE;
+            var url = utils.getChessyWebUrl(fen, "");
+            if (chess.in_checkmate()){
+                message = message + playerColor + " won by <a href='" + url + "'>check mate</a>...";
             }
-            else {
-                session.beginDialog('/opponent', {nextOpponentMove: result.nextOpponentMove});
+            else if (chess.in_draw()){
+                message = message + "this is a <a href='" + url + "'>draw</a> between BLACK and WHITE!";
             }
-            // End
+            else if (chess.in_stalemate()){
+                message = message + "this is a <a href='" + url + "'>draw (stalemate)</a> between BLACK and WHITE!";
+            }
+            session.send(message);
             session.endDialog();
-        });
+        }
+        else {
+            engine
+                .nextMove(fen)
+                .then((result) => {
+                    var isFen = fen.indexOf("/") > -1;
+                    if (isFen){
+                        session.beginDialog('/show_board', {fen: fen, prediction: result.nextMove, nextOpponentMove: result.nextOpponentMove, nextMateMove: result.nextMateMove});
+                    }
+                    session.endDialog();
+                });
+        }
+    }
+    else {
+        session.beginDialog("/no_fen");
+    }
 });
 
 bot.dialog('/show_board',function(session, args){
     var fen = args.fen;
     var prediction = args.prediction;
+    var nextOpponentMove = args.nextOpponentMove;
+    var nextMateMove = args.nextMateMove;
 
-    /*var match = fen.match(/\S+/gi);
-    var url = "https://en.lichess.org/analysis/standard/" + match[0] + "_" + match[1];*/
-
-    //for some reason the url below issues a bad request. probably because of the slash chars
-
-    ///for some reasons building a link with more than two query params does not work
-    ///TODO: submit the issue in git
-    var data = fen + " " + prediction;
-    var url = process.env.CHESSY_WEB_PATH + "?" + qs.stringify({data: data});
-    //without passing the fen it's ok
-    //var url = process.env.CHESSY_WEB_PATH + "?" + qs.stringify({move: prediction});
-    //var url = process.env.CHESSY_WEB_PATH + "?" + qs.stringify({fen: fen.replace("/", "_"), move: prediction});
-
-    /*var encoded_fen = utils.replaceAll(fen, "/", "_");
-    var encoded_fen = utils.replaceAll(encoded_fen, " ", "");
-    var encoded_fen = utils.replaceAll(encoded_fen, "-", "");
-    var url = process.env.CHESSY_WEB_PATH + "?fen=" + encoded_fen + "&move=" + prediction;*/
+    var url = utils.getChessyWebUrl(fen, prediction);
 
     console.log("url: " + url);
-    session.send("let me show this on the <a href='%s'>chessboard</a>!", url);
-    session.beginDialog('/opponent', {prediction: args.nextOpponentMove});
+    if (typeof nextMateMove !== "undefined" && nextMateMove !== null && !isNaN(nextMateMove)){
+        session.send("First you should be concerned that a MATE can be done in <strong>%s moves</strong> here!!!", nextMateMove);
+    }
+    session.send("May I suggest you for your next move: <a href='%s'>%s</a>", url, prediction);
+    //session.send("let me show this on the <a href='%s'>chessboard</a>!", url);
+    if (nextOpponentMove){
+        session.beginDialog('/opponent', {fen: fen, prediction: prediction, nextOpponentMove: nextOpponentMove});
+    }
 });
 
 bot.dialog('/opponent',function(session, args){
-    session.send("by the way the best move for your opponent right after your move is %s...", args.prediction);
+    var fen = args.fen;
+    var prediction = args.prediction;
+    var nextOpponentMove = args.nextOpponentMove;
+
+    chess.load(fen);
+    var from = prediction.substring(0, 2);
+    var to = prediction.substring(2, 4);
+    chess.move({from: from, to: to});
+    fen = chess.fen();
+
+    var url = utils.getChessyWebUrl(fen, nextOpponentMove);
+
+    console.log("opponent url: " + url);
+    session.send("by the way the best move for your opponent right after my suggested move is  <a href='%s'>%s</a>", url, nextOpponentMove);
+
 });
 
