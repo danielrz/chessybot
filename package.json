@@ -10,7 +10,7 @@
     "bluebird": "^3.4.1",
     "botbuilder": "^3.2.3",
     "restify": "^4.1.1",
-    "chess.js": "https://github.com/danielrz/chess.js"
+    "chess.js": "^0.10.2"
   },
   "keywords": [
     "chess"

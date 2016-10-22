@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>ChessyBot Board</title>
+    <link rel="stylesheet" href="lib/chessboard/chessboard.css" />
+    <style type="text/css">
+        .highlight {
+            -webkit-box-shadow: inset 0 0 3px 3px blue;
+            -moz-box-shadow: inset 0 0 3px 3px blue;
+            box-shadow: inset 0 0 3px 3px blue;
+        }
+    </style>
+</head>
+<body>
+
+<!--<script src="lib/chess/chess.min.js"></script>-->
+<script src="lib/chess/chess.js"></script>
+<div id="board" style="width: 400px"></div>
+<div>
+    FEN: <input type="text" disabled="disabled" class="fen" style="width:500px;font-size:14px;">
+</div>
+<script src="lib/json3/json3.min.js"></script>
+<script src="lib/jquery/jquery-1.10.1.min.js"></script>
+<script src="lib/chessboard/chessboard.js"></script>
+<script>
+    var DEFAULT_INITIAL_POSITION = "start";
+    var init = function() {
+
+        var board,
+                boardEl = $('#board'),
+                highlightDone = false,
+                chess = new Chess();
+
+        var removeHighlights = function() {
+            if (highlightDone){
+                boardEl.find('.square-55d63')
+                        .removeClass('highlight');
+                highlightDone = false;
+            }
+        };
+
+        var onDragStart = function(source, piece, position, orientation) {
+            removeHighlights();
+        };
+
+        var onDrop = function(source, target) {
+            // see if the move is legal
+            var move = chess.move({
+                from: source,
+                to: target,
+                promotion: 'q' ///TODO: get promotion from fen
+            });
+
+            // illegal move
+            if (move === null) {
+                return 'snapback';
+            }
+
+        };
+
+        // update the board position after the piece snap
+// for castling, en passant, pawn promotion
+        var onSnapEnd = function() {
+            displayFen();
+        };
+
+        var getParameterByName = function(name, url) {
+            if (!url) url = window.location.href;
+            name = name.replace(/[\[\]]/g, "\\$&");
+            var regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#|$)"),
+                    results = regex.exec(url);
+            if (!results) return null;
+            if (!results[2]) return '';
+            return decodeURIComponent(results[2].replace(/\+/g, " "));
+        };
+
+        var getDataParameters = function(){
+            var data = getParameterByName("data");
+            var match = data.match(/\S+/gi);
+            var fen = "";
+            var move = "";
+            if (match.length >= 6){
+                for (var i = 0; i < 6; i++) {
+                    var sep = (fen === "") ? "" : " ";
+                    fen = fen + sep + match[i];
+                }
+                if (match.length === 7){
+                    move = match[6];
+                }
+            }
+
+            fen = (fen === "") ? DEFAULT_INITIAL_POSITION : fen;
+            move = (move === "") ? "" : move;
+            return {fen: fen, move: move};
+        };
+
+        var dataParameters = getDataParameters();
+
+        var cfg = {
+            draggable: true,
+            position: dataParameters.fen,
+            onDragStart: onDragStart,
+            onDrop: onDrop,
+            onSnapEnd: onSnapEnd
+        };
+        board = ChessBoard('board', cfg);
+        chess.load(dataParameters.fen);
+
+        var suggestedMove = dataParameters.move;
+        if (suggestedMove === ""){
+            ///TODO: a better messaging gui
+            alert("No suggested move supplied");
+        }
+        else {
+            if (suggestedMove.length < 4 || suggestedMove > 5){
+                alert("Error parsing the suggested move");
+                return;
+            }
+            var from = suggestedMove.substring(0, 2);
+            var to = suggestedMove.substring(2);
+            boardEl.find('.square-' + from).addClass('highlight');
+            boardEl.find('.square-' + to).addClass('highlight');
+            highlightDone = true;
+        }
+
+        var displayFen = function(){
+            var fen = chess.fen();
+            board.position(fen);
+            $(".fen").val(fen);
+        };
+
+        displayFen();
+
+    };
+    $(document).ready(init);
+</script>
+
+</body>
+</html>

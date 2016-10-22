@@ -4,7 +4,7 @@
 var Promise = require('bluebird');
 var stockfish = require("../lib/stockfish.js");
 
-var DEFAULT_ANALYZING_TIME = 5000;
+var DEFAULT_ANALYZING_TIME = 10000;
 
 var engine = stockfish();
 

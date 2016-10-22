@@ -4,14 +4,16 @@
 var builder = require('botbuilder');
 var restify = require('restify');
 var engine = require('./engine/engine');
+var utils = require('./js/utils');
 var Chess = require('chess.js').Chess;
+var qs = require("querystring");
+
 var chess = new Chess();
-/*var res = chess.load_pgn('1.e4 e5 2.Nf3 Nc6 3.Bc4 Bc5 4.b4 Bxb4 5.c3 Ba5 6.d4 exd4 7.O-O', {sloppy: true});
-console.log(res);*/
+
 
 // Setup Restify Server
 var server = restify.createServer();
-server.listen(process.env.port || process.env.PORT || 3978, function () {
+server.listen(process.env.port || process.env.PORT || 3979, function () {
     console.log('%s listening to %s', server.name, server.url);
 });
 
@@ -123,7 +125,7 @@ bot.dialog('/help', [
 
 bot.dialog('/menu', [
     function (session) {
-        builder.Prompts.choice(session, "How would you like me to predict your next move?", "fen|pgn|(quit)");
+         builder.Prompts.choice(session, "How would you like me to predict your next move?", "fen|pgn|(quit)");
     },
     function (session, results) {
         if (results.response && results.response.entity != '(quit)') {
@@ -149,7 +151,8 @@ bot.dialog('/fen', [
     },
     function (session, results) {
         if (results.response){
-            session.beginDialog('/compute', {situation: results.response});
+            var fen = utils.normalizeFen(results.response);
+            session.beginDialog('/compute', {situation: fen});
         }
         else{
             session.beginDialog("/no_situation");
@@ -159,7 +162,8 @@ bot.dialog('/fen', [
 ]);
 
 bot.dialog('/validate_fen', builder.DialogAction.validatedPrompt(builder.PromptType.text, function (response) {
-    var result = chess.validate_fen(response);
+    var fen = utils.normalizeFen(response);
+    var result = chess.validate_fen(fen);
     var isValid = result.valid;
     ///TODO: currently prints the validation error message in the console as I did not find a way to to it with validatedPrompt
     ///maybe a workaround is implement my own by using the confirm prompt with a retry mechanism
@@ -214,10 +218,10 @@ bot.dialog('/compute',function(session, args){
             //session.userData.prediction = result;
             var isFen = args.situation.indexOf("/") > -1;
             if (isFen){
-                session.beginDialog('/show_board', {fen: args.situation, prediction: result});
+                session.beginDialog('/show_board', {fen: args.situation, prediction: result.nextMove, nextOpponentMove: result.nextOpponentMove});
             }
             else {
-                session.beginDialog('/opponent', {prediction: result});
+                session.beginDialog('/opponent', {nextOpponentMove: result.nextOpponentMove});
             }
             // End
             session.endDialog();
@@ -226,13 +230,32 @@ bot.dialog('/compute',function(session, args){
 
 bot.dialog('/show_board',function(session, args){
     var fen = args.fen;
-    var match = fen.match(/\S+/gi);
-    var url = "https://en.lichess.org/analysis/standard/" + match[0] + "_" + match[1];
-    session.send("let me show this on a <a href='%s'>chessboard</a>!", url);
-    session.beginDialog('/opponent', {prediction: args.prediction});
+    var prediction = args.prediction;
+
+    /*var match = fen.match(/\S+/gi);
+    var url = "https://en.lichess.org/analysis/standard/" + match[0] + "_" + match[1];*/
+
+    //for some reason the url below issues a bad request. probably because of the slash chars
+
+    ///for some reasons building a link with more than two query params does not work
+    ///TODO: submit the issue in git
+    var data = fen + " " + prediction;
+    var url = process.env.CHESSY_WEB_PATH + "?" + qs.stringify({data: data});
+    //without passing the fen it's ok
+    //var url = process.env.CHESSY_WEB_PATH + "?" + qs.stringify({move: prediction});
+    //var url = process.env.CHESSY_WEB_PATH + "?" + qs.stringify({fen: fen.replace("/", "_"), move: prediction});
+
+    /*var encoded_fen = utils.replaceAll(fen, "/", "_");
+    var encoded_fen = utils.replaceAll(encoded_fen, " ", "");
+    var encoded_fen = utils.replaceAll(encoded_fen, "-", "");
+    var url = process.env.CHESSY_WEB_PATH + "?fen=" + encoded_fen + "&move=" + prediction;*/
+
+    console.log("url: " + url);
+    session.send("let me show this on the <a href='%s'>chessboard</a>!", url);
+    session.beginDialog('/opponent', {prediction: args.nextOpponentMove});
 });
 
 bot.dialog('/opponent',function(session, args){
-    session.send("by the way the best move for your opponent right after your move is %s...", args.prediction.nextOpponentMove);
+    session.send("by the way the best move for your opponent right after your move is %s...", args.prediction);
 });
 
