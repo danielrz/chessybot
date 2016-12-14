@@ -8,28 +8,33 @@ from flask import Flask, jsonify, request
 
 app = Flask(__name__)
 
-@app.route('/api', methods=['GET'])
+predictor = chessyTensorflow_core.ChessboardPredictor()
+
+@app.route('/api', methods=['POST'])
 def chessyPredict():
     imageUrl = request.args.get('img_url')
-    print("\n---\nImage URL: %s" % imageUrl)
+    sideToPlay = request.args.get('side')
+    print("\n---\nImage URL: %s - side: %s" % (imageUrl, sideToPlay))
 
     if imageUrl is None:
         print("> %s - Couldn't generate FEN")
         return jsonify(result=[dict(fen="")])
     else:
         # Start up Tensorflow CNN with trained model
-        predictor = chessyTensorflow_core.ChessboardPredictor()
+
         fen, certainty = predictor.makePrediction(imageUrl)
         fen = shortenFEN(fen) # ex. '111pq11r' -> '3pq2r'
         print("Predicted FEN: %s" % fen)
+        print("Side to Play: %s" % sideToPlay)
         print("Certainty: %.4f%%" % (certainty*100))
 
-        # Get side from title or fen
-        side = getSideToPlay("", fen)
+        castle_status = getCastlingStatus(fen)
+        fen = "%s %s %s -" % (fen, sideToPlay, castle_status)
+
         # Generate response message
         #msg = generateMessage(fen, certainty, side)
-        print("fen: %s\nside: %s\n" % (fen, side))
-        return jsonify(result=[dict(fen=fen, certainty=certainty*100, side=side)])
+        print("final FEN: %s" % fen)
+        return jsonify(result=[dict(fen=fen, certainty=certainty*100)])
         # return jsonify(result=[dict(a=1, b=2), dict(c=3, d=4)])
         #return jsonify(result=[dict(imageUrl=imageUrl)])
 

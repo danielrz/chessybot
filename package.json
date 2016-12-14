@@ -9,6 +9,10 @@
   "dependencies": {
     "bluebird": "^3.4.1",
     "botbuilder": "^3.2.3",
+    "needle": "^1.4.2",
+    "url": "^0.11.0",
+    "valid-url": "^1.0.9",
+    "node-rest-client": "^2.0.1",
     "restify": "^4.1.1",
     "chess.js": "^0.10.2"
   },

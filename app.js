@@ -4,7 +4,9 @@
 var builder = require('botbuilder');
 var restify = require('restify');
 var engine = require('./engine/engine');
+var validUrl = require('valid-url');
 var utils = require('./js/utils');
+var imageUtils = require('./js/imageUtils');
 var Chess = require('chess.js').Chess;
 
 var PLAYER_COLOR = {
@@ -129,7 +131,7 @@ bot.dialog('/help', [
 
 bot.dialog('/menu', [
     function (session) {
-         builder.Prompts.choice(session, "How would you like me to predict your next move?", "fen|pgn|(quit)");
+         builder.Prompts.choice(session, "How would you like me to predict your next move?", "pic|fen|pgn|(quit)");
     },
     function (session, results) {
         if (results.response && results.response.entity != '(quit)') {
@@ -145,6 +147,92 @@ bot.dialog('/menu', [
         session.replaceDialog('/menu');
     }
 ]).reloadAction('reloadMenu', null, { matches: /^menu|show menu/i });
+
+bot.dialog('/pic', [
+    function (session) {
+        builder.Prompts.choice(session, "How would you like to send the picture (by url or by taking a picture)?", "picByUrl|picByFile|(quit)");
+    },
+    function (session, results) {
+        if (results.response && results.response.entity != '(quit)') {
+            // Launch engine dialog
+            session.beginDialog('/' + results.response.entity);
+        } else {
+            // Exit the menu
+            session.endDialog();
+        }
+    },
+    function (session, results) {
+        // The menu runs a loop until the user chooses to (quit).
+        session.replaceDialog('/menu');
+    }
+
+]);
+
+bot.dialog('/picByUrl', [
+    function (session) {
+        builder.Prompts.text(session, "tell me what is the url of your board");
+    },
+    function (session, results) {
+        session.userData.imgUrl = utils.getUrlFromLink(results.response);
+        builder.Prompts.choice(session, "Is it the turn to white (w) or black (b) to play?", "w|b|(quit)");
+    },
+    function (session, results) {
+        if (results.response && results.response.entity != '(quit)') {
+            // Launch engine dialog
+            session.userData.side = results.response.entity;
+            session.beginDialog('/predictFenByUrl');
+        } else {
+            // Exit the menu
+            session.endDialog();
+        }
+    },
+    function (session, results) {
+        // The menu runs a loop until the user chooses to (quit).
+        session.replaceDialog('/menu');
+    }
+]);
+
+bot.dialog('/predictFenByUrl', [
+    function(session){
+        utils
+            .getFENPrediction(session.userData.imgUrl, session.userData.side)
+            .then((result) => {
+                console.log(result);
+                var fen = "";
+                var certainty = 0;
+                if (result && result.result && result.result.length > 0){
+                    var res = result.result[0];
+                    fen = res.fen;
+                    certainty = res.certainty;
+                    session.beginDialog('/compute', {fen: fen, certainty: certainty});
+                }
+                session.endDialog();
+            });
+    }
+]);
+
+bot.dialog('/pic_grab', [
+    function (session) {
+        if (imageUtils.hasImageAttachment(session)) {
+            var stream = imageUtils.getImageStreamFromUrl(session.message.attachments[0]);
+            /*captionService
+                .getCaptionFromStream(stream)
+                .then(caption => handleSuccessResponse(session, caption))
+                .catch(error => handleErrorResponse(session, error));*/
+        }
+        else if(imageUrl = (imageUtils.parseAnchorTag(session.message.text) || (validUrl.isUri(session.message.text)? session.message.text : null))) {
+            /*captionService
+                .getCaptionFromUrl(imageUrl)
+                .then(caption => handleSuccessResponse(session, caption))
+                .catch(error => handleErrorResponse(session, error));*/
+            session.send("pic: <img src='%s' />", imageUrl);
+        }
+        else {
+            session.send("Did you upload an image? I'm more of a visual person. Try sending me an image or an image URL");
+        }
+    }
+
+]);
 
 bot.dialog('/fen', [
     function (session) {
@@ -213,7 +301,14 @@ bot.dialog("/no_fen", function(session){
 });
 
 bot.dialog('/compute',function(session, args){
-    session.send("ok. let me check the next best move for you....");
+    var certainty = args.certainty;
+    if (certainty){
+        var msg_certainty = utils.getMessageByCertainty(certainty);
+        session.send(msg_certainty);
+    }
+    else {
+        session.send("ok. let me check the next best move for you....");
+    }
     var fen = args.fen;
     if (chess.load(fen) === true){  //not clear from the doc when it fails if boolean only or not
         if (chess.game_over()){
