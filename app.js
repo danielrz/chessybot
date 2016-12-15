@@ -170,7 +170,7 @@ bot.dialog('/pic', [
 
 bot.dialog('/picByUrl', [
     function (session) {
-        builder.Prompts.text(session, "tell me what is the url of your board");
+        builder.Prompts.text(session, "tell me what is the url of your board. Example: http://i.imgur.com/HnWYt8A.png");
     },
     function (session, results) {
         session.userData.imgUrl = utils.getUrlFromLink(results.response);
@@ -206,7 +206,7 @@ bot.dialog('/predictFenByUrl', [
                     certainty = res.certainty;
                     session.beginDialog('/compute', {fen: fen, certainty: certainty});
                 }
-                session.endDialog();
+                //session.endDialog();
             });
     }
 ]);
@@ -310,38 +310,39 @@ bot.dialog('/compute',function(session, args){
         session.send("ok. let me check the next best move for you....");
     }
     var fen = args.fen;
-    if (chess.load(fen) === true){  //not clear from the doc when it fails if boolean only or not
-        if (chess.game_over()){
-            var message = "Ouch! it seems like the game is over! ";
-            var playerColor = chess.turn() === "b" ? PLAYER_COLOR.BLACK : PLAYER_COLOR.WHITE;
-            var url = utils.getChessyWebUrl(fen, "");
-            if (chess.in_checkmate()){
-                message = message + playerColor + " won by <a href='" + url + "'>check mate</a>...";
-            }
-            else if (chess.in_draw()){
-                message = message + "this is a <a href='" + url + "'>draw</a> between BLACK and WHITE!";
-            }
-            else if (chess.in_stalemate()){
-                message = message + "this is a <a href='" + url + "'>draw (stalemate)</a> between BLACK and WHITE!";
-            }
-            session.send(message);
-            session.endDialog();
+    //if (chess.load(fen) === true){  //not clear from the doc when it fails if boolean only or not
+    chess.load(fen);
+    if (chess.game_over()){
+        var message = "Ouch! it seems like the game is over! ";
+        var playerColor = chess.turn() === "b" ? PLAYER_COLOR.BLACK : PLAYER_COLOR.WHITE;
+        var url = utils.getChessyWebUrl(fen, "");
+        if (chess.in_checkmate()){
+            message = message + playerColor + " won by <a href='" + url + "'>check mate</a>...";
         }
-        else {
-            engine
-                .nextMove(fen)
-                .then((result) => {
-                    var isFen = fen.indexOf("/") > -1;
-                    if (isFen){
-                        session.beginDialog('/show_board', {fen: fen, prediction: result.nextMove, nextOpponentMove: result.nextOpponentMove, nextMateMove: result.nextMateMove});
-                    }
-                    session.endDialog();
-                });
+        else if (chess.in_draw()){
+            message = message + "this is a <a href='" + url + "'>draw</a> between BLACK and WHITE!";
         }
+        else if (chess.in_stalemate()){
+            message = message + "this is a <a href='" + url + "'>draw (stalemate)</a> between BLACK and WHITE!";
+        }
+        session.send(message);
+        //session.endDialog();
     }
     else {
-        session.beginDialog("/no_fen");
+        engine
+            .nextMove(fen)
+            .then((result) => {
+                var isFen = fen.indexOf("/") > -1;
+                if (isFen){
+                    session.beginDialog("/show_board", {fen: fen, prediction: result.nextMove, nextOpponentMove: result.nextOpponentMove, nextMateMove: result.nextMateMove});
+                }
+                //session.endDialog();
+            });
     }
+    /*}
+    else {
+        session.beginDialog("/no_fen");
+    }*/
 });
 
 bot.dialog('/show_board',function(session, args){
@@ -361,6 +362,7 @@ bot.dialog('/show_board',function(session, args){
     if (nextOpponentMove){
         session.beginDialog('/opponent', {fen: fen, prediction: prediction, nextOpponentMove: nextOpponentMove});
     }
+    session.endDialog();
 });
 
 bot.dialog('/opponent',function(session, args){

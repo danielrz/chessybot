@@ -80,7 +80,16 @@
             var match = data.match(/\S+/gi);
             var fen = "";
             var move = "";
-            if (match.length >= 6){
+            var lastIndex = match.length;
+            if (match.length > 1){
+                move = match[match.length - 1];
+                lastIndex = match.length - 1;
+            }
+            for (var i = 0; i < lastIndex; i++) {
+                var sep = (fen === "") ? "" : " ";
+                fen = fen + sep + match[i];
+            }
+            /*if (match.length >= 6){
                 for (var i = 0; i < 6; i++) {
                     var sep = (fen === "") ? "" : " ";
                     fen = fen + sep + match[i];
@@ -88,7 +97,7 @@
                 if (match.length === 7){
                     move = match[6];
                 }
-            }
+            }*/
 
             fen = (fen === "") ? DEFAULT_INITIAL_POSITION : fen;
             move = (move === "") ? "" : move;
@@ -105,7 +114,7 @@
             onSnapEnd: onSnapEnd
         };
         board = ChessBoard('board', cfg);
-        chess.load(dataParameters.fen);
+        //chess.load(dataParameters.fen);
 
         var suggestedMove = dataParameters.move;
         if (suggestedMove === ""){
@@ -124,13 +133,14 @@
             highlightDone = true;
         }
 
-        var displayFen = function(){
+        $(".fen").val(dataParameters.fen);
+        /*var displayFen = function(){
             var fen = chess.fen();
             board.position(fen);
             $(".fen").val(fen);
         };
 
-        displayFen();
+        displayFen();*/
 
     };
     $(document).ready(init);
