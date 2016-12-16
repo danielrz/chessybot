@@ -309,7 +309,7 @@ bot.dialog('/compute',function(session, args){
     else {
         session.send("ok. let me check the next best move for you....");
     }
-    var fen = args.fen;
+    var fen = utils.normalizeFen(args.fen);
     //if (chess.load(fen) === true){  //not clear from the doc when it fails if boolean only or not
     chess.load(fen);
     if (chess.game_over()){
@@ -369,8 +369,6 @@ bot.dialog('/opponent',function(session, args){
     var fen = args.fen;
     var prediction = args.prediction;
     var nextOpponentMove = args.nextOpponentMove;
-
-    chess.load(fen);
     var from = prediction.substring(0, 2);
     var to = prediction.substring(2, 4);
     chess.move({from: from, to: to});
