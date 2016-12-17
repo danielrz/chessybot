@@ -114,7 +114,7 @@
             onSnapEnd: onSnapEnd
         };
         board = ChessBoard('board', cfg);
-        //chess.load(dataParameters.fen);
+        chess.load(dataParameters.fen);
 
         var suggestedMove = dataParameters.move;
         if (suggestedMove === ""){
@@ -134,13 +134,13 @@
         }
 
         $(".fen").val(dataParameters.fen);
-        /*var displayFen = function(){
+        var displayFen = function(){
             var fen = chess.fen();
             board.position(fen);
             $(".fen").val(fen);
         };
 
-        displayFen();*/
+        /*displayFen();*/
 
     };
     $(document).ready(init);
