@@ -4,6 +4,8 @@
 var builder = require('botbuilder');
 var restify = require('restify');
 var engine = require('./engine/engine');
+var Promise = require('bluebird');
+var request = require('request-promise').defaults({ encoding: null });
 var validUrl = require('valid-url');
 var utils = require('./js/utils');
 var imageUtils = require('./js/imageUtils');
@@ -211,6 +213,59 @@ bot.dialog('/predictFenByUrl', [
     }
 ]);
 
+bot.dialog('/picByFile', [
+    function (session) {
+        builder.Prompts.attachment(session, "please upload a screenshot of your board");
+    },
+    function (session, results) {
+        var msg = new builder.Message(session)
+            .ntext("I got %d attachment.", "I got %d attachments.", results.response.length);
+        session.send(msg);
+        /*results.response.forEach(function (attachment) {
+            session.userData.imgUrl = attachment.contentUrl;
+            builder.Prompts.choice(session, "Is it the turn to white (w) or black (b) to play?", "w|b|(quit)");
+        });*/
+        if (results.response.length) {
+            var attachment = results.response[0];
+            var fileDownload = isSkypeMessage(results.response) ? requestWithToken(attachment.contentUrl): request(attachment.contentUrl);
+            fileDownload.then(
+                function (response) {
+
+                    // Send reply with attachment type & size
+                    var reply = new builder.Message(session)
+                        .text('Attachment of %s type and size of %s bytes received.', attachment.contentType, response.length);
+                    session.send(reply);
+                    //builder.Prompts.choice(session, "Is it the turn to white (w) or black (b) to play?", "w|b|(quit)");
+
+                }).catch(function (err) {
+                console.log('Error downloading attachment:', { statusCode: err.statusCode, message: err.response.statusMessage });
+            });
+        }
+        else {
+
+            // No attachments were sent
+            var reply = new builder.Message(session)
+                .text('Sorry but no attachment was sent to me. Please try again sending a new message with an attachment.');
+            session.send(reply);
+        }
+
+    }/*,
+    function (session, results) {
+        if (results.response && results.response.entity != '(quit)') {
+            // Launch engine dialog
+            session.userData.side = results.response.entity;
+            session.beginDialog('/predictFenByUrl');
+        } else {
+            // Exit the menu
+            session.endDialog();
+        }
+    },
+    function (session, results) {
+        // The menu runs a loop until the user chooses to (quit).
+        session.replaceDialog('/menu');
+    }*/
+]);
+
 bot.dialog('/pic_grab', [
     function (session) {
         if (imageUtils.hasImageAttachment(session)) {
@@ -380,4 +435,24 @@ bot.dialog('/opponent',function(session, args){
     session.send("by the way the best move for your opponent right after my suggested move is  <a href='%s'>%s</a>", url, nextOpponentMove);
 
 });
+
+// Request file with Authentication Header
+var requestWithToken = function (url) {
+    return obtainToken().then(function (token) {
+        return request({
+            url: url,
+            headers: {
+                'Authorization': 'Bearer ' + token,
+                'Content-Type': 'application/octet-stream'
+            }
+        });
+    });
+};
+
+// Promise for obtaining JWT Token (requested once)
+var obtainToken = Promise.promisify(connector.getAccessToken.bind(connector));
+
+var isSkypeMessage = function (message) {
+    return message.source === 'skype';
+};
 
