@@ -233,6 +233,7 @@ bot.dialog('/picByFile', [
                     var reply = new builder.Message(session)
                         .text('Attachment of %s type and size of %s bytes received.', attachment.contentType, response.length);
                     session.send(reply);
+                    ///TODO: check if valid enctype/extension first
                     fs.writeFile("./img/puzzles/" + uuid.v1() + ".png", response, "binary", function (err) {
                         console.log(err);
                         builder.Prompts.choice(session, "Is it the turn to white (w) or black (b) to play?", "w|b|(quit)");
