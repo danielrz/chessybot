@@ -7,8 +7,9 @@ var engine = require('./engine/engine');
 var Promise = require('bluebird');
 var request = require('request-promise').defaults({ encoding: null });
 var validUrl = require('valid-url');
+var uuid = require('node-uuid');
 var utils = require('./js/utils');
-var imageUtils = require('./js/imageUtils');
+var fs = require("fs");
 var Chess = require('chess.js').Chess;
 
 var PLAYER_COLOR = {
@@ -221,13 +222,10 @@ bot.dialog('/picByFile', [
         var msg = new builder.Message(session)
             .ntext("I got %d attachment.", "I got %d attachments.", results.response.length);
         session.send(msg);
-        /*results.response.forEach(function (attachment) {
-            session.userData.imgUrl = attachment.contentUrl;
-            builder.Prompts.choice(session, "Is it the turn to white (w) or black (b) to play?", "w|b|(quit)");
-        });*/
+
         if (results.response.length) {
             var attachment = results.response[0];
-            var fileDownload = isSkypeMessage(results.response) ? requestWithToken(attachment.contentUrl): request(attachment.contentUrl);
+            var fileDownload = isSkypeMessage(msg) ? requestWithToken(attachment.contentUrl): request(attachment.contentUrl);
             fileDownload.then(
                 function (response) {
 
@@ -235,7 +233,10 @@ bot.dialog('/picByFile', [
                     var reply = new builder.Message(session)
                         .text('Attachment of %s type and size of %s bytes received.', attachment.contentType, response.length);
                     session.send(reply);
-                    //builder.Prompts.choice(session, "Is it the turn to white (w) or black (b) to play?", "w|b|(quit)");
+                    fs.writeFile("./img/puzzles/" + uuid.v1() + ".png", response, "binary", function (err) {
+                        console.log(err);
+                        builder.Prompts.choice(session, "Is it the turn to white (w) or black (b) to play?", "w|b|(quit)");
+                    });
 
                 }).catch(function (err) {
                 console.log('Error downloading attachment:', { statusCode: err.statusCode, message: err.response.statusMessage });
@@ -249,44 +250,7 @@ bot.dialog('/picByFile', [
             session.send(reply);
         }
 
-    }/*,
-    function (session, results) {
-        if (results.response && results.response.entity != '(quit)') {
-            // Launch engine dialog
-            session.userData.side = results.response.entity;
-            session.beginDialog('/predictFenByUrl');
-        } else {
-            // Exit the menu
-            session.endDialog();
-        }
-    },
-    function (session, results) {
-        // The menu runs a loop until the user chooses to (quit).
-        session.replaceDialog('/menu');
-    }*/
-]);
-
-bot.dialog('/pic_grab', [
-    function (session) {
-        if (imageUtils.hasImageAttachment(session)) {
-            var stream = imageUtils.getImageStreamFromUrl(session.message.attachments[0]);
-            /*captionService
-                .getCaptionFromStream(stream)
-                .then(caption => handleSuccessResponse(session, caption))
-                .catch(error => handleErrorResponse(session, error));*/
-        }
-        else if(imageUrl = (imageUtils.parseAnchorTag(session.message.text) || (validUrl.isUri(session.message.text)? session.message.text : null))) {
-            /*captionService
-                .getCaptionFromUrl(imageUrl)
-                .then(caption => handleSuccessResponse(session, caption))
-                .catch(error => handleErrorResponse(session, error));*/
-            session.send("pic: <img src='%s' />", imageUrl);
-        }
-        else {
-            session.send("Did you upload an image? I'm more of a visual person. Try sending me an image or an image URL");
-        }
     }
-
 ]);
 
 bot.dialog('/fen', [
@@ -453,6 +417,6 @@ var requestWithToken = function (url) {
 var obtainToken = Promise.promisify(connector.getAccessToken.bind(connector));
 
 var isSkypeMessage = function (message) {
-    return message.source === 'skype';
+    return message.data.source === 'skype';
 };
 
