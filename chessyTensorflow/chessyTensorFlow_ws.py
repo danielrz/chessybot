@@ -29,12 +29,12 @@ def chessyPredict():
     sideToPlay = request.args.get('side')
     print("\n---\nImage URL: %s - side: %s" % (imageUrl, sideToPlay))
 
-    if imageUrl is None and fileName is None:
-        print("> %s - Couldn't generate FEN")
+    if not imageUrl and not fileName:
+        print("> %s - Couldn't generate FEN - no img url neither file name")
         return jsonify(result=[dict(fen="")])
     else:
         # Start up Tensorflow CNN with trained model
-        if imageUrl is not None:
+        if imageUrl:
             fen, certainty = predictor.makePrediction(imageUrl)
         else:
             path = os.path.join(app.config['UPLOAD_FOLDER'], fileName)
@@ -58,14 +58,17 @@ def chessyPredict():
 @app.route('/upload', methods=['POST'])
 def upload():
     # Get the name of the uploaded file
-    file = request.files['file']
+    file = request.files['puzzle']
     # Check if the file is one of the allowed types/extensions
     if file and allowed_file(file.filename):
         # Make the filename safe, remove unsupported chars
         filename = secure_filename(file.filename)
+        print("uploaded: %s", filename)
         # Move the file form the temporal folder to
         # the upload folder we setup
-        file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+        path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        print("file saved to %s", path)
+        file.save(path)
         # Redirect the user to the uploaded_file route, which
         # will basicaly show on the browser the uploaded file
         return jsonify(result=[dict(status="ok")])

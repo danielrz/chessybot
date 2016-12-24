@@ -52,17 +52,17 @@ module.exports = {
         return result;
     },
 
-    getFENPrediction: function(imageUrl, side){
+    getFENPrediction: function(imageUrl, fileName, side){
         return new Promise(function (resolve) {
             var client = new Client();
 
             // set content-type header and data as json in args parameter
             var args = {
-                parameters: { img_url: imageUrl, side: side },
+                parameters: { img_url: imageUrl, file_name: fileName, side: side },
                 headers: { "Content-Type": "application/json" }
             };
 
-            client.post(process.env.CHESSY_TENSORFLOW_API_PROD, args, function (data, response) {
+            client.post(process.env.CHESSY_TENSORFLOW_API_PROD + process.env.CHESSY_TENSORFLOW_API_PATH, args, function (data, response) {
                 // parsed response body as js object
                 console.log(data);
                 // raw response

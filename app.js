@@ -6,8 +6,8 @@ var restify = require('restify');
 var engine = require('./engine/engine');
 var Promise = require('bluebird');
 var request = require('request-promise').defaults({ encoding: null });
-var validUrl = require('valid-url');
 var uuid = require('node-uuid');
+var unirest = require('unirest');
 var utils = require('./js/utils');
 var fs = require("fs");
 var Chess = require('chess.js').Chess;
@@ -176,6 +176,7 @@ bot.dialog('/picByUrl', [
         builder.Prompts.text(session, "tell me what is the url of your board. Example: http://i.imgur.com/HnWYt8A.png");
     },
     function (session, results) {
+        session.userData.fileName = "";
         session.userData.imgUrl = utils.getUrlFromLink(results.response);
         builder.Prompts.choice(session, "Is it the turn to white (w) or black (b) to play?", "w|b|(quit)");
     },
@@ -183,7 +184,7 @@ bot.dialog('/picByUrl', [
         if (results.response && results.response.entity != '(quit)') {
             // Launch engine dialog
             session.userData.side = results.response.entity;
-            session.beginDialog('/predictFenByUrl');
+            session.beginDialog('/predictFen');
         } else {
             // Exit the menu
             session.endDialog();
@@ -195,10 +196,10 @@ bot.dialog('/picByUrl', [
     }
 ]);
 
-bot.dialog('/predictFenByUrl', [
+bot.dialog('/predictFen', [
     function(session){
         utils
-            .getFENPrediction(session.userData.imgUrl, session.userData.side)
+            .getFENPrediction(session.userData.imgUrl, session.userData.fileName, session.userData.side)
             .then((result) => {
                 console.log(result);
                 var fen = "";
@@ -234,9 +235,23 @@ bot.dialog('/picByFile', [
                         .text('Attachment of %s type and size of %s bytes received.', attachment.contentType, response.length);
                     session.send(reply);
                     ///TODO: check if valid enctype/extension first
-                    fs.writeFile("./img/puzzles/" + uuid.v1() + ".png", response, "binary", function (err) {
+                    ///TODO: get the right file extension
+                    var fileName = uuid.v1() + ".png";
+                    var path = "./img/puzzles/" + fileName;
+                    fs.writeFile(path, response, "binary", function (err) {
                         console.log(err);
-                        builder.Prompts.choice(session, "Is it the turn to white (w) or black (b) to play?", "w|b|(quit)");
+                        unirest.post(process.env.CHESSY_TENSORFLOW_API_PROD + process.env.CHESSY_TENSORFLOW_UPLOAD_PATH)
+                            .headers({'Content-Type': 'multipart/form-data'})
+                            //.field('parameter', 'value') // Form field
+                            .attach('puzzle', path) // Attachment
+                            .end(function (response) {
+                                console.log(response.body);
+                                if (response.code === 200){
+                                    session.userData.imgUrl = "";
+                                    session.userData.fileName = fileName;
+                                    session.beginDialog("/picByFileNext");
+                                }
+                            });
                     });
 
                 }).catch(function (err) {
@@ -251,6 +266,26 @@ bot.dialog('/picByFile', [
             session.send(reply);
         }
 
+    }
+]);
+
+bot.dialog('/picByFileNext', [
+    function (session){
+        builder.Prompts.choice(session, "Is it the turn to white (w) or black (b) to play?", "w|b|(quit)");
+    },
+    function (session, results) {
+        if (results.response && results.response.entity != '(quit)') {
+            // Launch engine dialog
+            session.userData.side = results.response.entity;
+            session.beginDialog('/predictFen');
+        } else {
+            // Exit the menu
+            session.endDialog();
+        }
+    },
+    function (session, results) {
+        // The menu runs a loop until the user chooses to (quit).
+        session.replaceDialog('/menu');
     }
 ]);
 
