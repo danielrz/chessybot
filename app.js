@@ -226,37 +226,42 @@ bot.dialog('/picByFile', [
 
         if (results.response.length) {
             var attachment = results.response[0];
-            var fileDownload = isSkypeMessage(msg) ? requestWithToken(attachment.contentUrl): request(attachment.contentUrl);
-            fileDownload.then(
-                function (response) {
+            if (attachment.contentType === "image"){
+                var fileDownload = isSkypeMessage(msg) ? requestWithToken(attachment.contentUrl): request(attachment.contentUrl);
+                fileDownload.then(
+                    function (response) {
+                        // Send reply with attachment type & size
+                        var reply = new builder.Message(session)
+                            .text('Attachment of %s type and size of %s bytes received.', attachment.contentType, response.length);
+                        session.send(reply);
+                        var fileName = uuid.v1() + ".png"; //will work even if original file is jpg
+                        var path = "./img/puzzles/" + fileName;
+                        fs.writeFile(path, response, "binary", function (err) {
+                            console.log(err);
+                            unirest.post(process.env.CHESSY_TENSORFLOW_API_PROD + process.env.CHESSY_TENSORFLOW_UPLOAD_PATH)
+                                .headers({'Content-Type': 'multipart/form-data'})
+                                //.field('parameter', 'value') // Form field
+                                .attach('puzzle', path) // Attachment
+                                .end(function (response) {
+                                    console.log(response.body);
+                                    if (response.code === 200){
+                                        session.userData.imgUrl = "";
+                                        session.userData.fileName = fileName;
+                                        session.beginDialog("/picByFileNext");
+                                    }
+                                });
+                        });
 
-                    // Send reply with attachment type & size
-                    var reply = new builder.Message(session)
-                        .text('Attachment of %s type and size of %s bytes received.', attachment.contentType, response.length);
-                    session.send(reply);
-                    ///TODO: check if valid enctype/extension first
-                    ///TODO: get the right file extension
-                    var fileName = uuid.v1() + ".png";
-                    var path = "./img/puzzles/" + fileName;
-                    fs.writeFile(path, response, "binary", function (err) {
-                        console.log(err);
-                        unirest.post(process.env.CHESSY_TENSORFLOW_API_PROD + process.env.CHESSY_TENSORFLOW_UPLOAD_PATH)
-                            .headers({'Content-Type': 'multipart/form-data'})
-                            //.field('parameter', 'value') // Form field
-                            .attach('puzzle', path) // Attachment
-                            .end(function (response) {
-                                console.log(response.body);
-                                if (response.code === 200){
-                                    session.userData.imgUrl = "";
-                                    session.userData.fileName = fileName;
-                                    session.beginDialog("/picByFileNext");
-                                }
-                            });
-                    });
-
-                }).catch(function (err) {
-                console.log('Error downloading attachment:', { statusCode: err.statusCode, message: err.response.statusMessage });
-            });
+                    }).catch(function (err) {
+                    console.log('Error downloading attachment:', { statusCode: err.statusCode, message: err.response.statusMessage });
+                });
+            }
+            else {
+                var reply = new builder.Message(session)
+                    .text('Sorry but I understand only images with a png or jpg extension');
+                session.send(reply);
+                session.replaceDialog('/menu');
+            }
         }
         else {
 
@@ -264,6 +269,7 @@ bot.dialog('/picByFile', [
             var reply = new builder.Message(session)
                 .text('Sorry but no attachment was sent to me. Please try again sending a new message with an attachment.');
             session.send(reply);
+            session.replaceDialog('/menu');
         }
 
     }
