@@ -20,6 +20,9 @@ def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1] in app.config['ALLOWED_EXTENSIONS']
 
+def invert(fen):
+    return ''.join(reversed(fen))
+
 predictor = chessyTensorflow_core.ChessboardPredictor()
 
 @app.route('/api', methods=['POST'])
@@ -41,6 +44,11 @@ def chessyPredict():
             fen, certainty = predictor.makePredictionFromFile(path)
 
         fen = shortenFEN(fen) # ex. '111pq11r' -> '3pq2r'
+
+        if sideToPlay == 'b':
+            # Flip FEN if black to play, assumes image is flipped
+            fen = invert(fen)
+
         print("Predicted FEN: %s" % fen)
         print("Side to Play: %s" % sideToPlay)
         print("Certainty: %.4f%%" % (certainty*100))
