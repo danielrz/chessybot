@@ -139,9 +139,7 @@
     function showPrediction(fen, move){
 
         chess.load(fen);
-        if (chess.game_over()){
-            CONTEXT.IS_GAME_OVER = true;
-            alert("game is over!");
+        if (isGameOver()){
             return;
         }
 
@@ -166,9 +164,19 @@
 
     };
 
+    function isGameOver(){
+        if (CONTEXT.IS_GAME_OVER || chess.game_over()){
+            CONTEXT.IS_GAME_OVER = true;
+            alert("game is over!");
+            return true;
+        }
+        else {
+            return false;
+        }
+    }
+
     function predixtNext(){
-        if (CONTEXT.IS_GAME_OVER){
-            alert("the game is over!");
+        if (isGameOver()){
             return;
         }
         var fen = $(".fen").val();
@@ -180,6 +188,9 @@
         }
         else {
             $(".loader").toggleClass("hide", false);
+            if (isGameOver()){
+                return;
+            }
             $.post(CHESSY_SERVICE_URL, fen, function(result){
                 $(".loader").toggleClass("hide", true);
                 $(".btnPrediction").prop("disabled", true);

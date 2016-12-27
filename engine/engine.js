@@ -73,10 +73,10 @@ module.exports = {
 
                 }
                 else if (line.indexOf("score mate ") > -1){
-                    match = line.match(/score mate [0-9]+/);
-                    match = match[0].match(/[0-9]+/);
+                    match = line.match(/score mate [-+]?[0-9]+/);
+                    match = match[0].match(/[-+]?[0-9]+/);
                     var mate = parseInt(match[0], 10);
-                    if (mate < next_mate_move){
+                    if (mate < next_mate_move && mate > -1){
                         next_mate_move = mate;
                     }
                 }
