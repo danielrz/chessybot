@@ -226,7 +226,7 @@ bot.dialog('/picByFile', [
 
         if (results.response.length) {
             var attachment = results.response[0];
-            if (attachment.contentType === "image"){
+            if (attachment.contentType.indexOf("image") > -1){
                 var fileDownload = isSkypeMessage(msg) ? requestWithToken(attachment.contentUrl): request(attachment.contentUrl);
                 fileDownload.then(
                     function (response) {
