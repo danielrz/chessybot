@@ -22,6 +22,10 @@ var chess = new Chess();
 
 // Setup Restify Server
 var server = restify.createServer();
+server
+    .use(restify.fullResponse())
+    .use(restify.bodyParser());
+
 server.listen(process.env.port || process.env.PORT || 3979, function () {
     console.log('%s listening to %s', server.name, server.url);
 });
@@ -34,6 +38,15 @@ var connector = new builder.ChatConnector({
 var bot = new builder.UniversalBot(connector);
 server.post('/api/messages', connector.listen());
 
+server.post("/analyze", utils.analyzeFen);
+
+//var expression = "/\/puzzles\/?.*/";
+//var rx = RegExp(expression,'i');
+
+server.get(/\/puzzles\/?.*/, restify.serveStatic({
+//server.get(expression, restify.serveStatic({
+    directory: './img'
+}));
 
 //=========================================================
 // Activity Events  (skype only)
@@ -178,6 +191,12 @@ bot.dialog('/picByUrl', [
     function (session, results) {
         session.userData.fileName = "";
         session.userData.imgUrl = utils.getUrlFromLink(results.response);
+        session.beginDialog("/picByUrlNext");
+    }
+]);
+
+bot.dialog('/picByUrlNext', [
+    function (session) {
         builder.Prompts.choice(session, "Is it the turn to white (w) or black (b) to play?", "w|b|(quit)");
     },
     function (session, results) {
@@ -237,8 +256,12 @@ bot.dialog('/picByFile', [
                         var fileName = uuid.v1() + ".png"; //will work even if original file is jpg
                         var path = "./img/puzzles/" + fileName;
                         fs.writeFile(path, response, "binary", function (err) {
-                            console.log(err);
-                            unirest.post(process.env.CHESSY_TENSORFLOW_API_PROD + process.env.CHESSY_TENSORFLOW_UPLOAD_PATH)
+                            console.log("upload of file " + fileName + "done. result: " + err);
+                            var imgUrl = process.env.CHESSY_BOT_PROD + process.env.CHESSY_BOT_IMG_PATH + "/" + fileName;
+                            session.userData.imgUrl = imgUrl;
+                            session.beginDialog("/picByUrlNext");
+                            //below is not necessary for this time
+                            /*unirest.post(process.env.CHESSY_TENSORFLOW_API_PROD + process.env.CHESSY_TENSORFLOW_UPLOAD_PATH)
                                 .headers({'Content-Type': 'multipart/form-data'})
                                 //.field('parameter', 'value') // Form field
                                 .attach('puzzle', path) // Attachment
@@ -249,7 +272,7 @@ bot.dialog('/picByFile', [
                                         session.userData.fileName = fileName;
                                         session.beginDialog("/picByFileNext");
                                     }
-                                });
+                                });*/
                         });
 
                     }).catch(function (err) {

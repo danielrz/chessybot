@@ -1,5 +1,6 @@
 /**
  * Created by danielr on 10/12/16.
+ * Not in use. Use the bot node js to handle post message form chessyweb
  */
 var restify = require('restify');
 var engine = require('./engine/engine');

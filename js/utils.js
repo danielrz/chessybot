@@ -3,6 +3,7 @@
  */
 var qs = require("querystring");
 var Promise = require('bluebird');
+var engine = require('../engine/engine');
 var Client = require('node-rest-client').Client;
 
 module.exports = {
@@ -71,6 +72,28 @@ module.exports = {
                 resolve(data);
             });
         });
+    },
+
+    analyzeFen: function(req, res, next) {
+        var fen = req.body.fen || req.body;
+        console.log("fen: " + fen);
+        engine
+            .nextMove(fen)
+            .then((result) => {
+                console.log("analyzeFen result: " + result);
+                var isFen = fen.indexOf("/") > -1;
+                if (isFen){
+                    res.json({
+                        fen: fen,
+                        prediction: result.nextMove,
+                        nextOpponentMove: result.nextOpponentMove,
+                        nextMateMove: result.nextMateMove});
+                }
+                else {
+                    res.status(500);
+                }
+            });
+
     },
 
     getMessageByCertainty: function(certainty){
