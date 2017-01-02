@@ -33,7 +33,7 @@
 <script src="lib/jquery/jquery-1.10.1.min.js"></script>
 <script src="lib/chessboard/chessboard.js"></script>
 <script>
-    var CHESSY_SERVICE_URL = "http://c7c075bf.ngrok.io/analyze";
+    var CHESSY_SERVICE_URL = "http://69e6d4c7.ngrok.io/analyze";
     var DEFAULT_INITIAL_POSITION = "start";
     var CONTEXT = {
         IS_GAME_OVER: false,
@@ -106,6 +106,10 @@
                 to: target,
                 promotion: 'q' ///TODO: get promotion from fen
             });
+            //if moved to another place than the predicted one then the precalculated next opponent move is not relevant. need to recalculate both next move and next opponent move
+            if (CONTEXT.NEXT_MOVE !== "" && CONTEXT.NEXT_MOVE !== (source + target)){
+                CONTEXT.OPPONENT_MOVE = "";
+            }
             $(".btnPrediction").prop("disabled", false);
             // illegal move
             if (move === null) {
